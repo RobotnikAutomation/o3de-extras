@@ -11,17 +11,16 @@
 #include <AzCore/Component/ComponentApplicationBus.h>
 #include <AzCore/Component/Entity.h>
 #include <AzCore/Component/EntityId.h>
+#include <AzCore/Memory/AllocatorManager.h>
 #include <AzCore/RTTI/RTTIMacros.h>
 #include <AzCore/Serialization/SerializeContext.h>
 #include <AzCore/Slice/SliceAssetHandler.h>
 #include <AzCore/UserSettings/UserSettingsComponent.h>
 #include <AzCore/std/containers/array.h>
 #include <AzCore/std/string/string_view.h>
-#include <AzQtComponents/Utilities/QtPluginPaths.h>
 #include <AzTest/GemTestEnvironment.h>
-#include <AzToolsFramework/Entity/EditorEntityContextComponent.h>
-#include <AzToolsFramework/ToolsComponents/TransformComponent.h>
-#include <AzToolsFramework/UnitTest/ToolsTestApplication.h>
+
+#include <Common/RuntimeTestApplication.h>
 
 #include <Clients/ROS2SimulationInterfacesSystemComponent.h>
 #include <ROS2/ROS2Bus.h>
@@ -32,7 +31,6 @@
 #include <Services/GetSimulatorFeaturesServiceHandler.h>
 #include <Services/GetSimulationStateServiceHandler.h>
 #include <Services/GetSpawnablesServiceHandler.h>
-#include <Services/ROS2ServiceBase.h>
 #include <Services/ResetSimulationServiceHandler.h>
 #include <Services/SetEntityStateServiceHandler.h>
 #include <Services/SetSimulationStateServiceHandler.h>
@@ -42,8 +40,6 @@
 #include "Mocks/SimulationEntityManagerMock.h"
 #include "Mocks/SimulationFeaturesAggregatorRequestsHandlerMock.h"
 #include "Mocks/SimulationManagerMock.h"
-
-#include <QApplication>
 
 #include <rclcpp/publisher.hpp>
 #include <rclcpp/rclcpp.hpp>
@@ -66,6 +62,7 @@ namespace UnitTest
         void AddGemsAndComponents() override;
         AZ::ComponentApplication* CreateApplicationInstance() override;
         void PostSystemEntityActivate() override;
+        void PostDestroyApplication() override;
 
     public:
         SimulationInterfaceROS2TestEnvironment() = default;
@@ -85,13 +82,23 @@ namespace UnitTest
 
     AZ::ComponentApplication* SimulationInterfaceROS2TestEnvironment::CreateApplicationInstance()
     {
-        // Using ToolsTestApplication to have AzFramework and AzToolsFramework components.
-        return aznew UnitTest::ToolsTestApplication("SimulationInterfaceROS2TestEnvironment");
+        return aznew UnitTest::RuntimeTestApplication("SimulationInterfaceROS2TestEnvironment");
     }
 
     void SimulationInterfaceROS2TestEnvironment::PostSystemEntityActivate()
     {
         AZ::UserSettingsComponentRequestBus::Broadcast(&AZ::UserSettingsComponentRequests::DisableSaveOnFinalize);
+    }
+
+    void SimulationInterfaceROS2TestEnvironment::PostDestroyApplication()
+    {
+        // rclcpp maintains a global default context in a static std::shared_ptr<Context> that is only
+        // destroyed at process exit — after O3DE's allocator teardown. This causes false positive leak
+        // reports (confirmed as "still reachable" by valgrind, not truly lost). Clearing the allocation
+        // records here (after the application and all its components are fully torn down) prevents the
+        // spurious failure. All real O3DE allocations have been freed by this point.
+        AZ::AllocatorManager::Instance().SetDefaultTrackingMode(AZ::Debug::AllocationRecords::Mode::RECORD_NO_RECORDS);
+        AZ::AllocatorManager::Instance().SetTrackingMode(AZ::Debug::AllocationRecords::Mode::RECORD_NO_RECORDS);
     }
 
     class SimulationInterfaceROS2TestFixture : public ::testing::Test
@@ -442,7 +449,11 @@ namespace UnitTest
         auto client = node->create_client<simulation_interfaces::srv::SpawnEntity>("/spawn_entity");
         auto request = std::make_shared<simulation_interfaces::srv::SpawnEntity::Request>();
         request->name = "valid_name";
+#if SIMULATION_INTERFACES_MAJOR_API_VERSION >= 2
+        request->entity_resource.uri = "test_uri";
+#else
         request->uri = "test_uri";
+#endif
         request->entity_namespace = "test_namespace";
         request->allow_renaming = true;
 
@@ -480,7 +491,11 @@ namespace UnitTest
         auto client = node->create_client<simulation_interfaces::srv::SpawnEntity>("/spawn_entity");
         auto request = std::make_shared<simulation_interfaces::srv::SpawnEntity::Request>();
         request->name = "invalid name"; // invalid name
+#if SIMULATION_INTERFACES_MAJOR_API_VERSION >= 2
+        request->entity_resource.uri = "test_uri";
+#else
         request->uri = "test_uri";
+#endif
         request->entity_namespace = "test_namespace";
 
         auto future = client->async_send_request(request);
@@ -502,7 +517,11 @@ namespace UnitTest
         auto client = node->create_client<simulation_interfaces::srv::SpawnEntity>("/spawn_entity");
         auto request = std::make_shared<simulation_interfaces::srv::SpawnEntity::Request>();
         request->name = "valid_name";
+#if SIMULATION_INTERFACES_MAJOR_API_VERSION >= 2
+        request->entity_resource.uri = "test_uri";
+#else
         request->uri = "test_uri";
+#endif
         request->entity_namespace = "invalid namespace";
 
         auto future = client->async_send_request(request);
@@ -624,12 +643,9 @@ namespace UnitTest
 
 } // namespace UnitTest
 
-// required to support running integration tests with Qt and PhysX
 AZTEST_EXPORT int AZ_UNIT_TEST_HOOK_NAME(int argc, char** argv)
 {
     ::testing::InitGoogleMock(&argc, argv);
-    AzQtComponents::PrepareQtPaths();
-    QApplication app(argc, argv);
     AZ::Test::printUnusedParametersWarning(argc, argv);
     AZ::Test::addTestEnvironments({ new UnitTest::SimulationInterfaceROS2TestEnvironment() });
     int result = RUN_ALL_TESTS();

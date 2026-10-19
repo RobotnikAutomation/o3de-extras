@@ -79,7 +79,7 @@ namespace ROS2Sensors
         AZ::Matrix3x3 m_angularVelocityCovariance = AZ::Matrix3x3::CreateZero();
         AZ::Matrix3x3 m_linearAccelerationCovariance = AZ::Matrix3x3::CreateZero();
 
-        void OnPhysicsEvent(AzPhysics::SceneHandle sceneHandle);
+        void OnPhysicsEvent(AzPhysics::SceneHandle sceneHandle, float physicsDeltaTime);
 
         void OnImuEvent(float imuDeltaTime, AzPhysics::SceneHandle sceneHandle, float physicsDeltaTime);
 
@@ -87,5 +87,9 @@ namespace ROS2Sensors
 
         // Handle to the simulated physical body
         AzPhysics::SimulatedBodyHandle m_bodyHandle = AzPhysics::InvalidSimulatedBodyHandle;
+        bool m_useTransformFallback = false;
+        bool m_transformFallbackInitialized = false;
+        AZ::Vector3 m_previousTransformFallbackPosition = AZ::Vector3::CreateZero();
+        AZ::Transform m_transformFallbackWorldTransform = AZ::Transform::CreateIdentity();
     };
 } // namespace ROS2Sensors

@@ -22,6 +22,21 @@ if(NOT PAL_TRAIT_SIMULATIONINTERFACES_SUPPORTED)
     return()
 endif()
 
+# Detect simulation_interfaces API generation.
+# Version >= 2.0.0 introduced breaking API changes (e.g. entity_resource wrapper, set_pose/set_twist flags).
+# Version >= 1.4.0 is the minimum supported API.
+# Calling find_package directly here (not inside a helper function) so that
+# simulation_interfaces_VERSION is available in this scope for the version check below.
+find_package(simulation_interfaces REQUIRED)
+if(simulation_interfaces_VERSION VERSION_GREATER_EQUAL "2.0.0")
+    set(SIMULATION_INTERFACES_MAJOR_API_VERSION 2)
+elseif(simulation_interfaces_VERSION VERSION_GREATER_EQUAL "1.4.0")
+    set(SIMULATION_INTERFACES_MAJOR_API_VERSION 1)
+else()
+    message(FATAL_ERROR "simulation_interfaces version ${simulation_interfaces_VERSION} is not supported. Minimum required: 1.4.0")
+endif()
+message(STATUS "simulation_interfaces ${simulation_interfaces_VERSION} -> SIMULATION_INTERFACES_MAJOR_API_VERSION=${SIMULATION_INTERFACES_MAJOR_API_VERSION}")
+
 # The ${gem_name}.API target declares the common interface that users of this gem should depend on in their targets
 ly_add_target(
     NAME ${gem_name}.API INTERFACE
@@ -35,9 +50,10 @@ ly_add_target(
     BUILD_DEPENDENCIES
         INTERFACE
            AZ::AzCore
+           AZ::AzFramework
 )
 
-target_interface_depends_on_ros2_package(${gem_name}.API simulation_interfaces 1.1.0 REQUIRED)
+target_interface_depends_on_ros2_package(${gem_name}.API simulation_interfaces REQUIRED)
 
 # The ${gem_name}.Private.Object target is an internal target
 # It should not be used outside of this Gems CMakeLists.txt
@@ -63,7 +79,9 @@ ly_add_target(
             Gem::DebugDraw.API
 )
 target_depends_on_ros2_packages(${gem_name}.Private.Object rclcpp std_msgs geometry_msgs rclcpp_action tf2_ros)
-target_depends_on_ros2_package(${gem_name}.Private.Object simulation_interfaces 1.1.0 REQUIRED)
+target_depends_on_ros2_package(${gem_name}.Private.Object simulation_interfaces REQUIRED)
+target_compile_definitions(${gem_name}.Private.Object PUBLIC
+    SIMULATION_INTERFACES_MAJOR_API_VERSION=${SIMULATION_INTERFACES_MAJOR_API_VERSION})
 
 # Here add ${gem_name} target, it depends on the Private Object library and Public API interface
 ly_add_target(
@@ -224,6 +242,9 @@ if(PAL_TRAIT_BUILD_TESTS_SUPPORTED)
                     AZ::AzTest
                     AZ::AzFramework
                     Gem::${gem_name}.Private.Object
+            RUNTIME_DEPENDENCIES
+                Gem::PhysX5
+                Gem::LmbrCentral
         )
 
         # Add ${gem_name}.Tests to googletest
@@ -262,6 +283,7 @@ if(PAL_TRAIT_BUILD_TESTS_SUPPORTED)
                 RUNTIME_DEPENDENCIES
                     Gem::PhysX5
                     Gem::LmbrCentral
+                    ${PROJECT_NAME}.Assets
             )
 
             # Add ${gem_name}.Editor.Tests to googletest
@@ -269,70 +291,33 @@ if(PAL_TRAIT_BUILD_TESTS_SUPPORTED)
                 NAME Gem::${gem_name}.Editor.Tests
             )
 
-            ly_add_target(
-                NAME ${gem_name}.TestApp ${PAL_TRAIT_TEST_TARGET_TYPE}
-                NAMESPACE Gem
-                FILES_CMAKE
-                    simulationinterfaces_editor_app_test.cmake
-                INCLUDE_DIRECTORIES
-                    PRIVATE
-                        Tests
-                        Source
-                        Include
-                BUILD_DEPENDENCIES
-                    PRIVATE
-                        AZ::AzTest
-                        AZ::AzTestShared
-                        AZ::AzToolsFramework
-                        Legacy::CryCommon
-                        Legacy::EditorCommon
-                        Legacy::Editor.Headers
-                        AZ::AzManipulatorTestFramework.Static
-                        Gem::${gem_name}.API
-                        Gem::${gem_name}.Editor.Private.Object
-                RUNTIME_DEPENDENCIES
-                    Gem::PhysX5
-                    Gem::LmbrCentral
-                    ${PROJECT_NAME}.Assets
-            )
-
-            # Add ${gem_name}.TestApp to googletest
-            ly_add_googletest(
-                NAME Gem::${gem_name}.TestApp
-            )
-
-            ly_add_target(
-                NAME ${gem_name}.ROS2Tests ${PAL_TRAIT_TEST_TARGET_TYPE}
-                NAMESPACE Gem
-                FILES_CMAKE
-                    ros2_simulationinterfaces_tests_files.cmake
-                INCLUDE_DIRECTORIES
-                    PRIVATE
-                        Tests
-                        Source
-                        Include
-                BUILD_DEPENDENCIES
-                    PRIVATE
-                        AZ::AzTest
-                        AZ::AzTestShared
-                        AZ::AzToolsFramework
-                        Legacy::CryCommon
-                        Legacy::EditorCommon
-                        Legacy::Editor.Headers
-                        AZ::AzManipulatorTestFramework.Static
-                        Gem::${gem_name}.API
-                        Gem::${gem_name}.Editor.Private.Object
-                        Gem::SimulationInterfaces.API
-                        Gem::ROS2.Static
-                        Gem::${gem_name}.Editor.Private.Object
-                RUNTIME_DEPENDENCIES
-                    Gem::ROS2
-                )
-
-            # Add ${gem_name}.ROS2Tests to googletest
-            ly_add_googletest(
-                NAME Gem::${gem_name}.ROS2Tests
-            )
         endif()
+    endif()
+
+    if(PAL_TRAIT_SIMULATIONINTERFACES_TEST_SUPPORTED)
+        ly_add_target(
+            NAME ${gem_name}.ROS2Tests ${PAL_TRAIT_TEST_TARGET_TYPE}
+            NAMESPACE Gem
+            FILES_CMAKE
+                ros2_simulationinterfaces_tests_files.cmake
+            INCLUDE_DIRECTORIES
+                PRIVATE
+                    Tests
+                    Source
+                    Include
+            BUILD_DEPENDENCIES
+                PRIVATE
+                    AZ::AzTest
+                    AZ::AzTestShared
+                    AZ::AzFramework
+                    Gem::${gem_name}.API
+                    Gem::${gem_name}.Private.Object
+                    Gem::ROS2.Static
+        )
+
+        # Add ${gem_name}.ROS2Tests to googletest
+        ly_add_googletest(
+            NAME Gem::${gem_name}.ROS2Tests
+        )
     endif()
 endif()

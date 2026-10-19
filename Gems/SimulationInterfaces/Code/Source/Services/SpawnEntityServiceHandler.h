@@ -8,13 +8,16 @@
 
 #pragma once
 
-#include "ROS2ServiceBase.h"
-#include <AzCore/std/string/regex.h>
 #include <AzCore/std/string/string_view.h>
+#include <Interfaces/ISimulationFeaturesBase.h>
+#include <ROS2/Handlers/ROS2ServiceBase.h>
 #include <simulation_interfaces/srv/spawn_entity.hpp>
+
 namespace ROS2SimulationInterfaces
 {
-    class SpawnEntityServiceHandler : public ROS2ServiceBase<simulation_interfaces::srv::SpawnEntity>
+    class SpawnEntityServiceHandler
+        : public ROS2::ROS2ServiceBase<simulation_interfaces::srv::SpawnEntity>
+        , public ISimulationFeaturesBase
     {
     public:
         AZStd::string_view GetTypeName() const override
@@ -29,10 +32,6 @@ namespace ROS2SimulationInterfaces
         AZStd::unordered_set<SimulationFeatureType> GetProvidedFeatures() override;
 
         AZStd::optional<Response> HandleServiceRequest(const std::shared_ptr<rmw_request_id_t> header, const Request& request) override;
-
-    private:
-        bool ValidateEntityName(const AZStd::string& entityName);
-        bool ValidateNamespaceName(const AZStd::string& namespaceName);
     };
 
 } // namespace ROS2SimulationInterfaces

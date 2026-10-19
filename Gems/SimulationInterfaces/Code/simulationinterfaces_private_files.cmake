@@ -21,11 +21,9 @@ set(FILES
     Source/Clients/LevelManager.h
     Source/Clients/ROS2SimulationInterfacesSystemComponent.cpp
     Source/Clients/ROS2SimulationInterfacesSystemComponent.h
-    Source/Interfaces/IROS2HandlerBase.h
+    Source/Interfaces/ISimulationFeaturesBase.h
     Source/Actions/SimulateStepsActionServerHandler.cpp
     Source/Actions/SimulateStepsActionServerHandler.h
-    Source/Actions/ROS2ActionBase.h
-    Source/Services/ROS2ServiceBase.h
     Source/Services/GetEntitiesServiceHandler.cpp
     Source/Services/GetEntitiesServiceHandler.h
     Source/Services/DeleteEntityServiceHandler.cpp
@@ -48,6 +46,10 @@ set(FILES
     Source/Services/GetEntityBoundsServiceHandler.h
     Source/Services/GetSpawnablesServiceHandler.cpp
     Source/Services/GetSpawnablesServiceHandler.h
+    Source/Services/SpawnServiceUtils.cpp
+    Source/Services/SpawnServiceUtils.h
+    Source/Services/SpawnEntitiesServiceHandler.cpp
+    Source/Services/SpawnEntitiesServiceHandler.h
     Source/Services/SpawnEntityServiceHandler.cpp
     Source/Services/SpawnEntityServiceHandler.h
     Source/Services/ResetSimulationServiceHandler.cpp

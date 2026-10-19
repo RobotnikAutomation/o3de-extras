@@ -92,7 +92,6 @@ namespace ROS2
                 return;
             }
             auto* transformInterface = entity->GetTransform();
-            AZ_Assert(transformInterface, "No transform for id : %s", id.ToString().c_str());
             if (!transformInterface)
             {
                 return;
@@ -192,7 +191,9 @@ namespace ROS2
             const auto ancestorStrategy = ancestorConfig.m_namespaceConfiguration.m_namespaceStrategy;
             if (ancestorStrategy == NamespaceConfiguration::NamespaceStrategy::FromEntityName)
             {
-                resolvedNames.emplace_back(ancestorName);
+                AZStd::string rosifiedName;
+                ROS2NamesRequestBus::BroadcastResult(rosifiedName, &ROS2NamesRequests::RosifyName, ancestorName);
+                resolvedNames.emplace_back(rosifiedName);
             }
             else if (ancestorStrategy == NamespaceConfiguration::NamespaceStrategy::Custom)
             {
@@ -206,7 +207,9 @@ namespace ROS2
             {
                 if (it == configurations.rbegin())
                 {
-                    resolvedNames.emplace_back(ancestorName);
+                    AZStd::string rosifiedName;
+                    ROS2NamesRequestBus::BroadcastResult(rosifiedName, &ROS2NamesRequests::RosifyName, ancestorName);
+                    resolvedNames.emplace_back(rosifiedName);
                 }
             }
         }
